@@ -1,0 +1,148 @@
+"""System tray icon with status indicator and quick actions."""
+
+from PySide6.QtCore import QTimer
+from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
+from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
+
+from .dashboard import DashboardWindow
+from .pg import PgCluster
+
+
+def _make_icon(colour: str) -> QIcon:
+    """Generate a simple coloured circle icon for the tray."""
+    size = 64
+    pixmap = QPixmap(size, size)
+    pixmap.fill(QColor("transparent"))
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setBrush(QColor(colour))
+    painter.setPen(QColor(colour).darker(120))
+    painter.drawEllipse(4, 4, size - 8, size - 8)
+
+    # Draw elephant tusk shape (simple white arc)
+    painter.setPen(QColor("white"))
+    painter.setBrush(QColor("white"))
+    painter.drawEllipse(20, 18, 8, 8)  # eye
+    painter.drawRect(18, 32, 12, 16)   # trunk hint
+
+    painter.end()
+    return QIcon(pixmap)
+
+
+STATUS_ICONS = {
+    "running": "#27ae60",
+    "stopped": "#dc3545",
+    "error": "#ffc107",
+    "unknown": "#808080",
+}
+
+
+class TuskbarTray(QSystemTrayIcon):
+    def __init__(self, cluster: PgCluster):
+        super().__init__()
+        self.cluster = cluster
+        self.dashboard: DashboardWindow | None = None
+
+        # Initial icon
+        self._update_icon("unknown")
+
+        # Menu
+        self.menu = QMenu()
+
+        self.status_action = QAction("Status: checking...")
+        self.status_action.setEnabled(False)
+        self.menu.addAction(self.status_action)
+
+        self.menu.addSeparator()
+
+        self.start_action = QAction("Start")
+        self.start_action.triggered.connect(self._start)
+        self.menu.addAction(self.start_action)
+
+        self.stop_action = QAction("Stop")
+        self.stop_action.triggered.connect(self._stop)
+        self.menu.addAction(self.stop_action)
+
+        self.restart_action = QAction("Restart")
+        self.restart_action.triggered.connect(self._restart)
+        self.menu.addAction(self.restart_action)
+
+        self.menu.addSeparator()
+
+        self.psql_action = QAction("Open psql")
+        self.psql_action.triggered.connect(self._open_psql)
+        self.menu.addAction(self.psql_action)
+
+        dashboard_action = QAction("Dashboard")
+        dashboard_action.triggered.connect(self._show_dashboard)
+        self.menu.addAction(dashboard_action)
+
+        self.menu.addSeparator()
+
+        quit_action = QAction("Quit")
+        quit_action.triggered.connect(QApplication.quit)
+        self.menu.addAction(quit_action)
+
+        self.setContextMenu(self.menu)
+        self.activated.connect(self._on_activated)
+
+        # Poll status
+        self.timer = QTimer()
+        self.timer.timeout.connect(self._poll_status)
+        self.timer.start(5000)
+        self._poll_status()
+
+    def _update_icon(self, status: str):
+        colour = STATUS_ICONS.get(status, STATUS_ICONS["unknown"])
+        self.setIcon(_make_icon(colour))
+        self.setToolTip(f"Tuskbar — PostgreSQL {status} (port {self.cluster.port})")
+
+    def _poll_status(self):
+        status = self.cluster.status()
+        running = status == "running"
+
+        self._update_icon(status)
+        self.status_action.setText(f"PostgreSQL: {status.upper()}")
+
+        self.start_action.setEnabled(not running)
+        self.stop_action.setEnabled(running)
+        self.restart_action.setEnabled(running)
+        self.psql_action.setEnabled(running)
+
+    def _start(self):
+        ok, msg = self.cluster.start()
+        if not ok:
+            self.showMessage("Tuskbar", f"Start failed: {msg}", QSystemTrayIcon.MessageIcon.Warning)
+        self._poll_status()
+
+    def _stop(self):
+        ok, msg = self.cluster.stop()
+        if not ok:
+            self.showMessage("Tuskbar", f"Stop failed: {msg}", QSystemTrayIcon.MessageIcon.Warning)
+        self._poll_status()
+
+    def _restart(self):
+        ok, msg = self.cluster.restart()
+        if not ok:
+            self.showMessage("Tuskbar", f"Restart failed: {msg}", QSystemTrayIcon.MessageIcon.Warning)
+        self._poll_status()
+
+    def _open_psql(self):
+        import subprocess
+        subprocess.Popen([
+            "x-terminal-emulator", "-e",
+            "psql", "-h", self.cluster.host,
+            "-p", str(self.cluster.port), "postgres",
+        ])
+
+    def _show_dashboard(self):
+        if self.dashboard is None:
+            self.dashboard = DashboardWindow(self.cluster)
+        self.dashboard.show()
+        self.dashboard.raise_()
+        self.dashboard.activateWindow()
+        self.dashboard.refresh()
+
+    def _on_activated(self, reason: QSystemTrayIcon.ActivationReason):
+        if reason == QSystemTrayIcon.ActivationReason.Trigger:
+            self._show_dashboard()
