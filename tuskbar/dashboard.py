@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .help import HelpDialog
 from .pg import PgCluster
 
 
@@ -76,6 +77,8 @@ class DashboardWindow(QMainWindow):
         self.restart_btn.clicked.connect(self._restart)
         self.psql_btn.clicked.connect(self._open_psql)
 
+        self.help_btn = QPushButton("Help")
+        self.help_btn.clicked.connect(self._show_help)
         self.quit_btn = QPushButton("Quit Tuskbar")
         self.quit_btn.clicked.connect(QApplication.instance().quit)
 
@@ -100,9 +103,13 @@ class DashboardWindow(QMainWindow):
         self.db_table.verticalHeader().setVisible(False)
         layout.addWidget(self.db_table)
 
-        # --- Quit button at bottom ---
+        # --- Bottom buttons ---
         layout.addStretch()
-        layout.addWidget(self.quit_btn)
+        bottom_row = QHBoxLayout()
+        bottom_row.addWidget(self.help_btn)
+        bottom_row.addStretch()
+        bottom_row.addWidget(self.quit_btn)
+        layout.addLayout(bottom_row)
 
         # --- Refresh timer ---
         self.timer = QTimer(self)
@@ -175,6 +182,10 @@ class DashboardWindow(QMainWindow):
         if not ok:
             QMessageBox.warning(self, "Restart failed", msg)
         self.refresh()
+
+    def _show_help(self):
+        dialog = HelpDialog(self)
+        dialog.exec()
 
     def _open_psql(self):
         import shutil
