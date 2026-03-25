@@ -178,8 +178,7 @@ class DashboardWindow(QMainWindow):
 
     def _copy_uri(self, dbname: str):
         uri = self.cluster.connection_string(dbname)
-        clipboard = QClipboard()
-        clipboard.setText(uri)
+        QApplication.clipboard().setText(uri)
 
     def _start(self):
         ok, msg = self.cluster.start()
