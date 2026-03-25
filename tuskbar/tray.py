@@ -84,7 +84,12 @@ class TuskbarTray(QSystemTrayIcon):
         self.menu.addAction(quit_action)
 
         self.setContextMenu(self.menu)
+
+        # On KDE, left-click opens dashboard; right-click shows context menu (handled by Qt)
         self.activated.connect(self._on_activated)
+
+        # Workaround: on some KDE/Wayland setups, middle-click also triggers
+        # We only handle DoubleClick and Trigger (single left-click)
 
         # Poll status
         self.timer = QTimer()
@@ -128,12 +133,13 @@ class TuskbarTray(QSystemTrayIcon):
         self._poll_status()
 
     def _open_psql(self):
+        import shutil
         import subprocess
-        subprocess.Popen([
-            "x-terminal-emulator", "-e",
-            "psql", "-h", self.cluster.host,
-            "-p", str(self.cluster.port), "postgres",
-        ])
+        psql_cmd = f"psql -p {self.cluster.port} postgres; exec bash"
+        if shutil.which("konsole"):
+            subprocess.Popen(["konsole", "-e", "bash", "-c", psql_cmd])
+        else:
+            subprocess.Popen(["x-terminal-emulator", "-e", "bash", "-c", psql_cmd])
 
     def _show_dashboard(self):
         if self.dashboard is None:

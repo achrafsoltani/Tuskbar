@@ -85,22 +85,23 @@ class PgCluster:
     def databases(self) -> list[dict]:
         """List databases with name and size."""
         try:
-            import psycopg
-            with psycopg.connect(
-                host=self.host, port=self.port, dbname="postgres",
-                autocommit=True,
-            ) as conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT d.datname, pg_database_size(d.datname) AS size
-                        FROM pg_database d
-                        WHERE d.datistemplate = false
-                        ORDER BY d.datname
-                    """)
-                    return [
-                        {"name": row[0], "size": row[1]}
-                        for row in cur.fetchall()
-                    ]
+            query = (
+                "SELECT datname, pg_database_size(datname) "
+                "FROM pg_database WHERE datistemplate = false ORDER BY datname;"
+            )
+            result = subprocess.run(
+                [self._bin("psql"), "-p", str(self.port), "-d", "postgres",
+                 "-tAF", "|", "-c", query],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode != 0:
+                return []
+            databases = []
+            for line in result.stdout.strip().splitlines():
+                parts = line.split("|")
+                if len(parts) == 2:
+                    databases.append({"name": parts[0], "size": int(parts[1])})
+            return databases
         except Exception:
             return []
 
@@ -115,6 +116,19 @@ def detect_data_dir() -> str:
     if pgdata and os.path.isdir(pgdata):
         return pgdata
 
+    # Ask a running server directly
+    try:
+        result = subprocess.run(
+            ["psql", "-d", "postgres", "-tAc", "SHOW data_directory;"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            path = result.stdout.strip()
+            if os.path.isdir(path):
+                return path
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+
     # Common Linux locations
     candidates = [
         os.path.expanduser("~/.local/share/postgresql"),
@@ -123,14 +137,18 @@ def detect_data_dir() -> str:
 
     # Check for versioned dirs under /var/lib/postgresql
     pg_base = Path("/var/lib/postgresql")
-    if pg_base.is_dir():
-        for child in sorted(pg_base.iterdir(), reverse=True):
-            main = child / "main"
-            if main.is_dir():
+    try:
+        if pg_base.is_dir():
+            for child in sorted(pg_base.iterdir(), reverse=True):
+                main = child / "main"
                 candidates.insert(0, str(main))
+    except PermissionError:
+        # Debian/Ubuntu: dirs owned by postgres user, guess versioned paths
+        for ver in range(20, 13, -1):
+            candidates.insert(0, f"/var/lib/postgresql/{ver}/main")
 
     for path in candidates:
-        if os.path.isdir(path) and os.path.isfile(os.path.join(path, "PG_VERSION")):
+        if os.path.isdir(path):
             return path
 
     return ""

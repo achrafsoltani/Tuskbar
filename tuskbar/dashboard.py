@@ -3,6 +3,7 @@
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QClipboard, QFont
 from PySide6.QtWidgets import (
+    QApplication,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -69,6 +70,9 @@ class DashboardWindow(QMainWindow):
         self.restart_btn.clicked.connect(self._restart)
         self.psql_btn.clicked.connect(self._open_psql)
 
+        self.quit_btn = QPushButton("Quit Tuskbar")
+        self.quit_btn.clicked.connect(QApplication.instance().quit)
+
         for btn in (self.start_btn, self.stop_btn, self.restart_btn, self.psql_btn):
             btn.setMinimumHeight(32)
             btn_row.addWidget(btn)
@@ -89,6 +93,10 @@ class DashboardWindow(QMainWindow):
         self.db_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.db_table.verticalHeader().setVisible(False)
         layout.addWidget(self.db_table)
+
+        # --- Quit button at bottom ---
+        layout.addStretch()
+        layout.addWidget(self.quit_btn)
 
         # --- Refresh timer ---
         self.timer = QTimer(self)
@@ -163,11 +171,12 @@ class DashboardWindow(QMainWindow):
         self.refresh()
 
     def _open_psql(self):
+        import shutil
         import subprocess
         selected = self.db_table.selectedItems()
         dbname = selected[0].text() if selected else "postgres"
-        subprocess.Popen([
-            "x-terminal-emulator", "-e",
-            "psql", "-h", self.cluster.host,
-            "-p", str(self.cluster.port), dbname,
-        ])
+        psql_cmd = f"psql -p {self.cluster.port} {dbname}; exec bash"
+        if shutil.which("konsole"):
+            subprocess.Popen(["konsole", "-e", "bash", "-c", psql_cmd])
+        else:
+            subprocess.Popen(["x-terminal-emulator", "-e", "bash", "-c", psql_cmd])
