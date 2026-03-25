@@ -141,6 +141,80 @@ class PgCluster:
         user = getpass.getuser()
         return f"postgresql://{user}@{self.host}:{self.port}/{dbname}"
 
+    # --- Role management ---
+
+    def _psql_query(self, query: str) -> str | None:
+        """Run a psql query and return raw stdout, or None on failure."""
+        try:
+            result = subprocess.run(
+                [self._bin("psql"), "-p", str(self.port), "-d", "postgres",
+                 "-tAF|", "-c", query],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except Exception:
+            pass
+        return None
+
+    def _psql_exec(self, query: str) -> tuple[bool, str]:
+        """Execute a psql command (no result set expected)."""
+        try:
+            result = subprocess.run(
+                [self._bin("psql"), "-p", str(self.port), "-d", "postgres",
+                 "-c", query],
+                capture_output=True, text=True, timeout=5,
+            )
+            return result.returncode == 0, result.stderr or result.stdout
+        except Exception as e:
+            return False, str(e)
+
+    def roles(self) -> list[dict]:
+        """List PostgreSQL roles with attributes."""
+        out = self._psql_query(
+            "SELECT rolname, rolsuper, rolcreatedb, rolcanlogin "
+            "FROM pg_roles WHERE rolname NOT LIKE 'pg_%' ORDER BY rolname;"
+        )
+        if not out:
+            return []
+        roles = []
+        for line in out.splitlines():
+            parts = line.split("|")
+            if len(parts) == 4:
+                roles.append({
+                    "name": parts[0],
+                    "superuser": parts[1] == "t",
+                    "createdb": parts[2] == "t",
+                    "login": parts[3] == "t",
+                })
+        return roles
+
+    def create_role(self, name: str, password: str,
+                    superuser: bool = False, createdb: bool = False) -> tuple[bool, str]:
+        """Create a new PostgreSQL role."""
+        opts = []
+        opts.append("SUPERUSER" if superuser else "NOSUPERUSER")
+        opts.append("CREATEDB" if createdb else "NOCREATEDB")
+        opts.append("LOGIN")
+        # Escape single quotes in password
+        safe_pw = password.replace("'", "''")
+        safe_name = name.replace('"', '""')
+        query = f'CREATE ROLE "{safe_name}" WITH {" ".join(opts)} PASSWORD \'{safe_pw}\';'
+        return self._psql_exec(query)
+
+    def change_password(self, name: str, password: str) -> tuple[bool, str]:
+        """Change password for an existing role."""
+        safe_pw = password.replace("'", "''")
+        safe_name = name.replace('"', '""')
+        query = f'ALTER ROLE "{safe_name}" PASSWORD \'{safe_pw}\';'
+        return self._psql_exec(query)
+
+    def drop_role(self, name: str) -> tuple[bool, str]:
+        """Drop a PostgreSQL role."""
+        safe_name = name.replace('"', '""')
+        query = f'DROP ROLE "{safe_name}";'
+        return self._psql_exec(query)
+
 
 def detect_data_dir() -> str:
     """Try to find the default PostgreSQL data directory."""
