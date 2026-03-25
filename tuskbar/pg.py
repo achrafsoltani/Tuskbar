@@ -48,31 +48,39 @@ class PgCluster:
             return "stopped"
         return "error"
 
-    def start(self) -> tuple[bool, str]:
+    def _systemctl_available(self) -> bool:
+        """Check if PostgreSQL is managed by systemd."""
         result = subprocess.run(
-            [self._bin("pg_ctl"), "-D", self.data_dir, "-l",
-             os.path.join(self.data_dir, "server.log"),
-             "-o", f"-p {self.port}",
-             "start"],
+            ["systemctl", "is-enabled", "postgresql"],
             capture_output=True, text=True,
         )
+        return result.returncode == 0
+
+    def _run_control(self, action: str) -> tuple[bool, str]:
+        """Start/stop/restart PostgreSQL via systemctl (with pkexec for auth)
+        or pg_ctl as fallback."""
+        if self._systemctl_available():
+            result = subprocess.run(
+                ["pkexec", "systemctl", action, "postgresql"],
+                capture_output=True, text=True,
+            )
+        else:
+            args = [self._bin("pg_ctl"), "-D", self.data_dir]
+            if action in ("start", "restart"):
+                args += ["-l", os.path.join(self.data_dir, "server.log"),
+                         "-o", f"-p {self.port}"]
+            args.append(action)
+            result = subprocess.run(args, capture_output=True, text=True)
         return result.returncode == 0, result.stderr or result.stdout
+
+    def start(self) -> tuple[bool, str]:
+        return self._run_control("start")
 
     def stop(self) -> tuple[bool, str]:
-        result = subprocess.run(
-            [self._bin("pg_ctl"), "-D", self.data_dir, "stop"],
-            capture_output=True, text=True,
-        )
-        return result.returncode == 0, result.stderr or result.stdout
+        return self._run_control("stop")
 
     def restart(self) -> tuple[bool, str]:
-        result = subprocess.run(
-            [self._bin("pg_ctl"), "-D", self.data_dir,
-             "-o", f"-p {self.port}",
-             "restart"],
-            capture_output=True, text=True,
-        )
-        return result.returncode == 0, result.stderr or result.stdout
+        return self._run_control("restart")
 
     def version(self) -> str:
         result = subprocess.run(
