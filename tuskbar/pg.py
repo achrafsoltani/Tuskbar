@@ -54,7 +54,30 @@ class PgCluster:
             ["systemctl", "is-enabled", "postgresql"],
             capture_output=True, text=True,
         )
-        return result.returncode == 0
+        return result.returncode == 0 or result.stdout.strip() == "disabled"
+
+    def autostart_enabled(self) -> bool | None:
+        """Check if PostgreSQL is enabled to start on boot.
+        Returns None if not managed by systemd."""
+        result = subprocess.run(
+            ["systemctl", "is-enabled", "postgresql"],
+            capture_output=True, text=True,
+        )
+        status = result.stdout.strip()
+        if status == "enabled":
+            return True
+        if status == "disabled":
+            return False
+        return None
+
+    def set_autostart(self, enabled: bool) -> tuple[bool, str]:
+        """Enable or disable PostgreSQL autostart via systemctl."""
+        action = "enable" if enabled else "disable"
+        result = subprocess.run(
+            ["pkexec", "systemctl", action, "postgresql"],
+            capture_output=True, text=True,
+        )
+        return result.returncode == 0, result.stderr or result.stdout
 
     def _run_control(self, action: str) -> tuple[bool, str]:
         """Start/stop/restart PostgreSQL via systemctl (with pkexec for auth)
