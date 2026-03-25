@@ -137,7 +137,9 @@ class PgCluster:
             return []
 
     def connection_string(self, dbname: str = "postgres") -> str:
-        return f"postgresql://{self.host}:{self.port}/{dbname}"
+        import getpass
+        user = getpass.getuser()
+        return f"postgresql://{user}@{self.host}:{self.port}/{dbname}"
 
 
 def detect_data_dir() -> str:
