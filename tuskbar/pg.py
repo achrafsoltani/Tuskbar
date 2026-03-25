@@ -91,7 +91,7 @@ class PgCluster:
             )
             result = subprocess.run(
                 [self._bin("psql"), "-p", str(self.port), "-d", "postgres",
-                 "-tAF", "|", "-c", query],
+                 "-tAF|", "-c", query],
                 capture_output=True, text=True, timeout=5,
             )
             if result.returncode != 0:
