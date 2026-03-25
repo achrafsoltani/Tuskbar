@@ -7,6 +7,7 @@ from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from .dashboard import DashboardWindow
+from .help import HelpDialog
 from .pg import PgCluster
 
 ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
@@ -24,6 +25,7 @@ class TuskbarTray(QSystemTrayIcon):
         super().__init__()
         self.cluster = cluster
         self.dashboard: DashboardWindow | None = None
+        self.help_dialog: HelpDialog | None = None
 
         # Initial icon
         self._update_icon("unknown")
@@ -58,6 +60,10 @@ class TuskbarTray(QSystemTrayIcon):
         dashboard_action = QAction("Dashboard")
         dashboard_action.triggered.connect(self._show_dashboard)
         self.menu.addAction(dashboard_action)
+
+        help_action = QAction("Help")
+        help_action.triggered.connect(self._show_help)
+        self.menu.addAction(help_action)
 
         self.menu.addSeparator()
 
@@ -122,6 +128,13 @@ class TuskbarTray(QSystemTrayIcon):
             subprocess.Popen(["konsole", "-e", "bash", "-c", psql_cmd])
         else:
             subprocess.Popen(["x-terminal-emulator", "-e", "bash", "-c", psql_cmd])
+
+    def _show_help(self):
+        if self.help_dialog is None:
+            self.help_dialog = HelpDialog()
+        self.help_dialog.show()
+        self.help_dialog.raise_()
+        self.help_dialog.activateWindow()
 
     def _show_dashboard(self):
         if self.dashboard is None:
