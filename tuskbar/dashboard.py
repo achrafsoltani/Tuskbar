@@ -128,11 +128,9 @@ class DashboardWindow(QMainWindow):
     def _refresh_databases(self, running: bool):
         self.db_table.setRowCount(0)
         if not running:
-            print("[tuskbar] not running, skipping db refresh")
             return
 
         databases = self.cluster.databases()
-        print(f"[tuskbar] databases found: {databases}")
         self.db_table.setRowCount(len(databases))
 
         for i, db in enumerate(databases):
