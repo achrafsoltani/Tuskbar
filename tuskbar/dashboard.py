@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QClipboard, QFont, QIcon
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -87,6 +88,11 @@ class DashboardWindow(QMainWindow):
             btn_row.addWidget(btn)
         layout.addLayout(btn_row)
 
+        # --- Autostart toggle ---
+        self.autostart_check = QCheckBox("Start PostgreSQL on boot")
+        self.autostart_check.toggled.connect(self._toggle_autostart)
+        layout.addWidget(self.autostart_check)
+
         # --- Database table ---
         db_header = QLabel("Databases")
         db_header.setFont(QFont("", 13, QFont.Weight.Bold))
@@ -136,6 +142,16 @@ class DashboardWindow(QMainWindow):
         self.restart_btn.setEnabled(running)
         self.psql_btn.setEnabled(running)
 
+        # Autostart checkbox
+        autostart = self.cluster.autostart_enabled()
+        if autostart is None:
+            self.autostart_check.setVisible(False)
+        else:
+            self.autostart_check.setVisible(True)
+            self.autostart_check.blockSignals(True)
+            self.autostart_check.setChecked(autostart)
+            self.autostart_check.blockSignals(False)
+
         self._refresh_databases(running)
 
     def _refresh_databases(self, running: bool):
@@ -181,6 +197,12 @@ class DashboardWindow(QMainWindow):
         ok, msg = self.cluster.restart()
         if not ok:
             QMessageBox.warning(self, "Restart failed", msg)
+        self.refresh()
+
+    def _toggle_autostart(self, checked: bool):
+        ok, msg = self.cluster.set_autostart(checked)
+        if not ok:
+            QMessageBox.warning(self, "Autostart failed", msg)
         self.refresh()
 
     def _show_help(self):
