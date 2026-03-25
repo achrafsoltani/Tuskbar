@@ -1,7 +1,9 @@
 """Dashboard window — shows cluster status, databases, and actions."""
 
+import os
+
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QClipboard, QFont
+from PySide6.QtGui import QClipboard, QFont, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -27,11 +29,15 @@ def _human_size(nbytes: int) -> str:
     return f"{nbytes:.1f} PB"
 
 
+ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
+
+
 class DashboardWindow(QMainWindow):
     def __init__(self, cluster: PgCluster):
         super().__init__()
         self.cluster = cluster
         self.setWindowTitle("Tuskbar — PostgreSQL Manager")
+        self.setWindowIcon(QIcon(os.path.join(ASSETS_DIR, "tuskbar-window.svg")))
         self.setMinimumSize(560, 420)
 
         central = QWidget()

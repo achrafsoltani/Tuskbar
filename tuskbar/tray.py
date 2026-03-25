@@ -1,39 +1,21 @@
 """System tray icon with status indicator and quick actions."""
 
+import os
+
 from PySide6.QtCore import QTimer
-from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
+from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from .dashboard import DashboardWindow
 from .pg import PgCluster
 
+ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
 
-def _make_icon(colour: str) -> QIcon:
-    """Generate a simple coloured circle icon for the tray."""
-    size = 64
-    pixmap = QPixmap(size, size)
-    pixmap.fill(QColor("transparent"))
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setBrush(QColor(colour))
-    painter.setPen(QColor(colour).darker(120))
-    painter.drawEllipse(4, 4, size - 8, size - 8)
-
-    # Draw elephant tusk shape (simple white arc)
-    painter.setPen(QColor("white"))
-    painter.setBrush(QColor("white"))
-    painter.drawEllipse(20, 18, 8, 8)  # eye
-    painter.drawRect(18, 32, 12, 16)   # trunk hint
-
-    painter.end()
-    return QIcon(pixmap)
-
-
-STATUS_ICONS = {
-    "running": "#27ae60",
-    "stopped": "#dc3545",
-    "error": "#ffc107",
-    "unknown": "#808080",
+STATUS_ICON_FILES = {
+    "running": os.path.join(ASSETS_DIR, "tuskbar-running.svg"),
+    "stopped": os.path.join(ASSETS_DIR, "tuskbar-stopped.svg"),
+    "error": os.path.join(ASSETS_DIR, "tuskbar-stopped.svg"),
+    "unknown": os.path.join(ASSETS_DIR, "tuskbar.svg"),
 }
 
 
@@ -98,8 +80,8 @@ class TuskbarTray(QSystemTrayIcon):
         self._poll_status()
 
     def _update_icon(self, status: str):
-        colour = STATUS_ICONS.get(status, STATUS_ICONS["unknown"])
-        self.setIcon(_make_icon(colour))
+        icon_path = STATUS_ICON_FILES.get(status, STATUS_ICON_FILES["unknown"])
+        self.setIcon(QIcon(icon_path))
         self.setToolTip(f"Tuskbar — PostgreSQL {status} (port {self.cluster.port})")
 
     def _poll_status(self):
