@@ -19,6 +19,7 @@ mkdir -p "${PKG_DIR}/usr/share/${APP_NAME}"
 mkdir -p "${PKG_DIR}/usr/share/${APP_NAME}/assets"
 mkdir -p "${PKG_DIR}/usr/bin"
 mkdir -p "${PKG_DIR}/usr/share/applications"
+mkdir -p "${PKG_DIR}/etc/xdg/autostart"
 mkdir -p "${PKG_DIR}/usr/share/icons/hicolor/scalable/apps"
 
 # Copy Python package
@@ -50,6 +51,19 @@ Categories=Development;Database;
 Keywords=postgresql;postgres;database;tray;
 StartupNotify=false
 DESKTOP
+
+# Autostart entry (system-wide)
+cat > "${PKG_DIR}/etc/xdg/autostart/${APP_NAME}.desktop" << AUTOSTART
+[Desktop Entry]
+Type=Application
+Name=Tuskbar
+Comment=PostgreSQL system tray manager
+Exec=${APP_NAME}
+Icon=${APP_NAME}
+Terminal=false
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
+AUTOSTART
 
 # App icon (scalable)
 cp assets/tuskbar-window.svg "${PKG_DIR}/usr/share/icons/hicolor/scalable/apps/${APP_NAME}.svg"

@@ -96,6 +96,20 @@ Keywords=postgresql;postgres;database;tray;
 StartupNotify=false
 EOF
 
+# Autostart entry (system-wide)
+mkdir -p %{buildroot}/etc/xdg/autostart
+cat > %{buildroot}/etc/xdg/autostart/%{name}.desktop << EOF
+[Desktop Entry]
+Type=Application
+Name=Tuskbar
+Comment=PostgreSQL system tray manager
+Exec=%{name}
+Icon=%{name}
+Terminal=false
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
+EOF
+
 # Icon
 mkdir -p %{buildroot}/usr/share/icons/hicolor/scalable/apps
 cp assets/tuskbar-window.svg %{buildroot}/usr/share/icons/hicolor/scalable/apps/%{name}.svg
@@ -109,6 +123,7 @@ gtk-update-icon-cache -q /usr/share/icons/hicolor/ 2>/dev/null || true
 /usr/share/%{name}/
 /usr/share/applications/%{name}.desktop
 /usr/share/icons/hicolor/scalable/apps/%{name}.svg
+/etc/xdg/autostart/%{name}.desktop
 
 %changelog
 * $(date '+%a %b %d %Y') Achraf Soltani <achraf.soltani@pm.me> - ${VERSION}-${RELEASE}
